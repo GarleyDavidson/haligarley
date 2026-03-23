@@ -184,6 +184,45 @@
     .shop-add-row input:focus { border-color: var(--accent); }
     .shop-add-btn { padding: 11px 16px; background: var(--accent); color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: var(--font); }
 
+    /* ── Notification overlay ── */
+    #noti-panel {
+      position: fixed;
+      top: 56px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-110%);
+      width: 100%;
+      max-width: 480px;
+      height: calc(100% - 56px);
+      background: var(--bg);
+      z-index: 150;
+      overflow-y: auto;
+      transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+      pointer-events: none;
+    }
+    #noti-panel.noti-open {
+      transform: translateX(-50%) translateY(0);
+      pointer-events: auto;
+    }
+    .noti-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 20px 10px;
+      font-weight: 700; font-size: 16px;
+    }
+    .noti-clear {
+      font-size: 12px; color: var(--soft); cursor: pointer;
+      background: none; border: none; font-family: var(--font);
+    }
+    .noti-item {
+      padding: 14px 20px; border-bottom: 1px solid #f0efed;
+      display: flex; gap: 12px; align-items: flex-start;
+    }
+    .noti-item .noti-icon { font-size: 22px; flex-shrink: 0; }
+    .noti-item .noti-body { flex: 1; }
+    .noti-item .noti-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+    .noti-item .noti-msg { font-size: 12px; color: var(--soft); }
+    .noti-item .noti-time { font-size: 11px; color: #bbb; margin-top: 2px; }
+    .noti-empty { text-align: center; padding: 60px 20px; color: var(--soft); font-size: 14px; }
+
     /* ── Settings overlay ── */
     #tab-settings {
       position: fixed;
@@ -241,6 +280,10 @@
   <div class="header-center">
     <span class="sync-badge" id="syncStatus">연결 중...</span>
   </div>
+  <button onclick="toggleNotifications()" id="notiBtn" style="font-size:20px;background:none;border:none;cursor:pointer;padding:0 2px;position:relative">
+    🔔
+    <span id="notiBadge" style="display:none;position:absolute;top:-2px;right:-2px;background:#e94560;color:#fff;border-radius:50%;width:14px;height:14px;font-size:9px;line-height:14px;text-align:center;font-weight:700"></span>
+  </button>
   <button onclick="toggleSettings()" id="settingsBtn" style="font-size:20px;background:none;border:none;cursor:pointer;padding:0 2px">⚙️</button>
 </header>
 
@@ -361,6 +404,15 @@
   </div>
 
 </div> <!-- /tab-container -->
+
+  <!-- ── NOTIFICATION PANEL ── -->
+  <div id="noti-panel">
+    <div class="noti-header">
+      <span>🔔 알림</span>
+      <button class="noti-clear" onclick="clearNotifications()">모두 지우기</button>
+    </div>
+    <div id="notiList"><div class="noti-empty">아직 알림이 없어요</div></div>
+  </div>
 
   <!-- ── SETTINGS (오버레이) ── -->
   <div id="tab-settings">
@@ -492,12 +544,92 @@ let currentCat    = 'food';
 let currentAuthor = 'me';
 let currentCatTab = 'expense';
 let editId        = null;
-let prevTab = 'home';
-let settingsOpen = false;
+let notiOpen = false;
+let notifications = JSON.parse(localStorage.getItem('hg_notis') || '[]');
+
+function toggleNotifications() {
+  // 설정 열려있으면 먼저 닫기
+  if (settingsOpen) {
+    document.getElementById('tab-settings').classList.remove('settings-open');
+    settingsOpen = false;
+  }
+  notiOpen = !notiOpen;
+  const panel = document.getElementById('noti-panel');
+  if (notiOpen) {
+    renderNotiList();
+    panel.classList.add('noti-open');
+    // 읽음 처리 - 뱃지 제거
+    document.getElementById('notiBadge').style.display = 'none';
+    localStorage.setItem('hg_noti_unread', '0');
+  } else {
+    panel.classList.remove('noti-open');
+  }
+}
+
+function addNotification(title, msg) {
+  const noti = {
+    title, msg,
+    time: new Date().toISOString(),
+    id: Date.now()
+  };
+  notifications.unshift(noti);
+  if (notifications.length > 50) notifications = notifications.slice(0, 50);
+  localStorage.setItem('hg_notis', JSON.stringify(notifications));
+
+  // 뱃지 표시
+  const unread = parseInt(localStorage.getItem('hg_noti_unread') || '0') + 1;
+  localStorage.setItem('hg_noti_unread', unread);
+  const badge = document.getElementById('notiBadge');
+  badge.style.display = 'block';
+  badge.textContent = unread > 9 ? '9+' : unread;
+
+  if (notiOpen) renderNotiList();
+}
+
+function renderNotiList() {
+  const list = document.getElementById('notiList');
+  if (!notifications.length) {
+    list.innerHTML = '<div class="noti-empty">아직 알림이 없어요 🔔</div>';
+    return;
+  }
+  list.innerHTML = notifications.map(n => {
+    const d = new Date(n.time);
+    const timeStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    return `<div class="noti-item">
+      <div class="noti-icon">💸</div>
+      <div class="noti-body">
+        <div class="noti-title">${n.title}</div>
+        <div class="noti-msg">${n.msg}</div>
+        <div class="noti-time">${timeStr}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function clearNotifications() {
+  notifications = [];
+  localStorage.setItem('hg_notis', '[]');
+  localStorage.setItem('hg_noti_unread', '0');
+  document.getElementById('notiBadge').style.display = 'none';
+  renderNotiList();
+}
+
+// 앱 시작 시 안읽은 뱃지 복원
+(function() {
+  const unread = parseInt(localStorage.getItem('hg_noti_unread') || '0');
+  if (unread > 0) {
+    const badge = document.getElementById('notiBadge');
+    badge.style.display = 'block';
+    badge.textContent = unread > 9 ? '9+' : unread;
+  }
+})();
+
 
 // ══════════════════════════════════════════
 //  SETTINGS TOGGLE (오버레이 방식)
 // ══════════════════════════════════════════
+let prevTab = 'home';
+let settingsOpen = false;
 function toggleSettings() {
   const el = document.getElementById('tab-settings');
   settingsOpen = !settingsOpen;
@@ -712,6 +844,7 @@ function initSwipe() {
   el.addEventListener('touchstart', e => {
     if (isAnimating) return;
     if (settingsOpen) return;
+    if (notiOpen) return;
     if (!document.getElementById('dayPopup').classList.contains('hidden')) return;
     if (!document.getElementById('monthPicker').classList.contains('hidden')) return;
     startX = e.touches[0].clientX;
@@ -1300,8 +1433,21 @@ async function submitForm() {
   };
   document.getElementById('submitBtn').textContent = '저장 중...';
   try {
-    if (editId) { await window.fbUpdate(editId, tx); showToast('수정됐어요 ✓'); }
-    else        { await window.fbAdd(tx);             showToast('추가됐어요 ✓'); }
+    if (editId) {
+      await window.fbUpdate(editId, tx);
+      showToast('수정됐어요 ✓');
+      const sign = tx.type === 'income' ? '+' : '-';
+      const msg = `${tx.author}이(가) ${tx.category} ${sign}${amount.toLocaleString()}원을 수정했어요`;
+      window.sendPushToPartner?.('가계부 수정 ✏️', msg);
+      addNotification('가계부 수정 ✏️', msg);
+    } else {
+      await window.fbAdd(tx);
+      showToast('추가됐어요 ✓');
+      const sign = tx.type === 'income' ? '+' : '-';
+      const msg = `${tx.author}이(가) ${tx.category} ${sign}${amount.toLocaleString()}원을 기록했어요`;
+      window.sendPushToPartner?.('새 내역 추가 💸', msg);
+      addNotification('새 내역 추가 💸', msg);
+    }
     initForm();
     switchTab('home');
   } catch(e) {
@@ -1357,6 +1503,7 @@ renderAll();
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBZp43Mzh4VLfExeIoVwPIQNl4Cf7NPq4o",
@@ -1367,8 +1514,91 @@ renderAll();
     appId: "1:104709094928:web:a6ab606216e00caf219495"
   };
 
+  const VAPID_KEY = "BCzjY8XzC14gdpC143SyNNpRKq1rH9GK9PimTUpHgnn79ahawEoiy3CHML_yNPXuii7fvq9bAhW87XWRIlU3mVE";
+
   const app = initializeApp(firebaseConfig);
   const db  = getFirestore(app);
+  const messaging = getMessaging(app);
+
+  // ── 토스트 알림 함수 ──
+  window.showToast = function(msg) {
+    let t = document.getElementById('pushToast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'pushToast';
+      t.style.cssText = `
+        position:fixed; top:70px; left:50%; transform:translateX(-50%) translateY(-20px);
+        background:#333; color:#fff; padding:10px 20px; border-radius:20px;
+        font-size:14px; z-index:9999; opacity:0; transition:all 0.3s;
+        max-width:80%; text-align:center; white-space:pre-line;
+      `;
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    t.style.transform = 'translateX(-50%) translateY(0)';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => {
+      t.style.opacity = '0';
+      t.style.transform = 'translateX(-50%) translateY(-20px)';
+    }, 3500);
+  };
+
+  // ── FCM 토큰 등록 및 알림 권한 요청 ──
+  async function initPush() {
+    try {
+      if (!('Notification' in window)) return;
+      // Service Worker 등록
+      const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return;
+
+      const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+      if (!token) return;
+
+      // 내 토큰을 Firebase에 저장 (상대방이 알림 보낼 때 사용)
+      const tokenKey = 'fcm_' + btoa(token).substring(0, 20);
+      await setDoc(doc(db, "settings", "fcm_tokens"), { [tokenKey]: token }, { merge: true });
+      window._myFcmToken = token;
+
+    } catch(e) {
+      console.log('Push init error:', e);
+    }
+  }
+
+  // ── 포그라운드 메시지 수신 (앱 열려있을 때) ──
+  onMessage(messaging, payload => {
+    const title = payload.notification?.title || '할리갈리네 가계부';
+    const body  = payload.notification?.body  || '새로운 업데이트가 있어요';
+    window.showToast(`🔔 ${title}\n${body}`);
+  });
+
+  // ── 상대방에게 푸시 보내기 ──
+  window.sendPushToPartner = async function(title, body) {
+    try {
+      // 저장된 FCM 토큰들 가져오기
+      const snap = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js")
+        .then(m => m.getDoc(doc(db, "settings", "fcm_tokens")));
+      if (!snap.exists()) return;
+
+      const tokens = Object.values(snap.data()).filter(t => t !== window._myFcmToken);
+      if (!tokens.length) return;
+
+      // FCM REST API로 각 기기에 푸시 발송
+      for (const token of tokens) {
+        await fetch(`https://fcm.googleapis.com/v1/projects/haligarley/messages:send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: { token, notification: { title, body } }
+          })
+        });
+      }
+    } catch(e) {
+      console.log('Push send error:', e);
+    }
+  };
 
   window.fbAdd    = async (tx)       => await addDoc(collection(db, "transactions"), tx);
   window.fbUpdate = async (id, data) => await updateDoc(doc(db, "transactions", id), data);
@@ -1424,6 +1654,9 @@ renderAll();
 
   document.getElementById('syncStatus').textContent = '☁️ 연결됨';
   window.appReady = true;
+
+  // 푸시 알림 초기화 (약간 딜레이 후 권한 요청)
+  setTimeout(initPush, 2000);
 </script>
 </body>
 </html>
