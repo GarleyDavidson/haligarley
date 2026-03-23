@@ -1437,14 +1437,20 @@ async function submitForm() {
       await window.fbUpdate(editId, tx);
       showToast('수정됐어요 ✓');
       const sign = tx.type === 'income' ? '+' : '-';
-      const msg = `${tx.author}이(가) ${tx.category} ${sign}${amount.toLocaleString()}원을 수정했어요`;
+      const authorName = tx.author === 'spouse' ? '🐹 갈리' : '🐻 할리';
+      const catObj = getCat(tx.category);
+      const catLabel = catObj ? `${catObj.icon} ${catObj.label}` : tx.category;
+      const msg = `${authorName}가 ${catLabel} ${sign}${amount.toLocaleString()}원을 수정했어요`;
       window.sendPushToPartner?.('가계부 수정 ✏️', msg);
       addNotification('가계부 수정 ✏️', msg);
     } else {
       await window.fbAdd(tx);
       showToast('추가됐어요 ✓');
       const sign = tx.type === 'income' ? '+' : '-';
-      const msg = `${tx.author}이(가) ${tx.category} ${sign}${amount.toLocaleString()}원을 기록했어요`;
+      const authorName = tx.author === 'spouse' ? '🐹 갈리' : '🐻 할리';
+      const catObj = getCat(tx.category);
+      const catLabel = catObj ? `${catObj.icon} ${catObj.label}` : tx.category;
+      const msg = `${authorName}가 ${catLabel} ${sign}${amount.toLocaleString()}원을 기록했어요`;
       window.sendPushToPartner?.('새 내역 추가 💸', msg);
       addNotification('새 내역 추가 💸', msg);
     }
